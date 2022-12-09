@@ -6,7 +6,7 @@ mod novel;
 mod novel_147;
 use std::{env, fs};
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(worker_threads = 2)]
 async fn main() -> Result<()> {
     env_logger::init();
     let args: Vec<String> = env::args().collect();

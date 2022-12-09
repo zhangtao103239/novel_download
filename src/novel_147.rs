@@ -67,11 +67,11 @@ impl Novel147 {
                     Ok(chapter)
                 }));
             } else {
-                info!("开始下载第{}章的内容", chapter.index);
                 if let Some(href) = chapter.url.clone() {
                     tasks.push(tokio::spawn(async move {
-                        let content = reqwest::get(&href).await?.text().await?;
                         std::thread::sleep(Duration::from_millis(1500));
+                        info!("开始下载第{}章的内容", chapter.index);
+                        let content = reqwest::get(&href).await?.text().await?;
                         let html = Html::parse_document(&content);
                         let selector = Selector::parse("#content").unwrap();
                         return if let Some(content) = html.select(&selector).next() {
@@ -103,7 +103,7 @@ impl Novel147 {
     }
     fn generate_book(book: ElementRef) -> Option<NovelInfo> {
         let mut index: i32 = -1;
-        let mut novel_info = NovelInfo::new(None, None, None, None, None);
+        let mut novel_info = NovelInfo{name: None, url: None, author: None, desc: None, index_url: None};
         debug!("当前节点为{:#?}", book.html());
         let selector = Selector::parse("td").unwrap();
         let mut book_select = book.select(&selector);
