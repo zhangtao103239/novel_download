@@ -6,7 +6,7 @@ mod novel;
 mod novel_147;
 use std::{env, fs};
 
-#[tokio::main(worker_threads = 2)]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     env_logger::init();
     let args: Vec<String> = env::args().collect();
@@ -26,29 +26,35 @@ async fn main() -> Result<()> {
     let novel = &novels[0];
     if let Some(name) = &novel.name {
         info!("即将开始获取小说{}的信息", name);
-        let chapters = Novel147::get_content(novel).await?;
+        let mut chapters = Novel147::get_content(novel).await?;
         if chapters.is_empty() {
             bail!("未获取到小说的章节")
         }
+
+        let mut failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
+        let retry_count = 5;
+        let mut retry_index = 0;
+        while failed_count != 0 && retry_index < retry_count{
+            chapters = Novel147::get_chapters_content(chapters).await?;
+            failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
+            retry_index += 1;
+        }
         let mut content_list = Vec::new();
-        let mut chapter_index = 0;
         for chapter in &chapters {
-            chapter_index += 1;
             if let Some(content) = &chapter.name {
-                content_list.push(format!("第{}章  ", chapter_index) + content.as_str());
+                content_list.push(format!("第{}章  ", chapter.index) + content.as_str());
             } else {
-                error!("第{}章未获取到标题:{:#?}", chapter_index, chapter)
+                error!("第{}章未获取到标题:{:#?}", chapter.index, chapter);
             }
 
             if let Some(content) = &chapter.content {
                 content_list.push(content.clone());
             } else {
-                error!("第{}章未获取到正文:{:#?}", chapter_index, chapter)
+                error!("第{}章未获取到正文:{:#?}", chapter.index, chapter);
             }
         }
         info!(
-            "已获取到小说内容，共{}章，准备写入文件{}.txt",
-            chapter_index, name
+            "已获取到小说内容，共{}章，准备写入文件{}.txt",chapters.len(), name
         );
         fs::write(format!("{}.txt", name), content_list.join("\n\n"))?;
     } else {

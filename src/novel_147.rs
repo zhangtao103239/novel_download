@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::novel::*;
 use anyhow::{bail, Ok};
-use log::{debug, info};
+use log::{debug, error, info};
 use scraper::{ElementRef, Html, Selector};
 // use tokio_stream::{self as stream, StreamExt};
 
@@ -44,48 +44,62 @@ impl Novel147 {
             let mut chapters: Vec<NovelChapter> = Vec::new();
             let mut chapter_selector = html.select(&selector);
             let mut chapter_index = 0;
-            let mut tasks = Vec::new();
+
             while let Some(chapter) = chapter_selector.next() {
                 chapter_index += 1;
                 let chapter_name: String = chapter.text().collect();
                 if let Some(href) = chapter.value().attr("href") {
                     let href = String::from(Self::host_url() + href);
-                    tasks.push(tokio::spawn(async move {
-                        let content = reqwest::get(&href).await?.text().await?;
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                        let html = Html::parse_document(&content);
-                        let selector = Selector::parse("#content").unwrap();
-                        let content = html.select(&selector).next().unwrap();
-                        let content: String = content.text().collect();
-                        info!("已获取到第{}章的内容", chapter_index);
-                        Ok((chapter_index, chapter_name, href, content))
-                    }));
+                    chapters.push(NovelChapter { index: chapter_index, name: Some(chapter_name), url: Some(href), content: None });
                 };
             }
-
-            for task in tasks {
-                let chapter = task.await??;
-                chapters.push(NovelChapter {
-                    index: chapter.0,
-                    name: Some(chapter.1),
-                    url: Some(chapter.2),
-                    content: Some(chapter.3),
-                });
-            }
-            // let mut stream = stream::iter(tasks);
-            // while let Some(task) = stream.next().await {
-            //     let chapter = task.await??;
-            //     chapters.push(NovelChapter {
-            //         index: chapter.0,
-            //         name: Some(chapter.1),
-            //         url: Some(chapter.2),
-            //         content: Some(chapter.3),
-            //     });
-            // }
-            Ok(chapters)
+            Self::get_chapters_content(chapters).await
         } else {
             bail!("该小说{:#?}没有目录URL", novel)
         }
+    }
+    pub async fn get_chapters_content(chapters: Vec<NovelChapter>) -> anyhow::Result<Vec<NovelChapter>> {
+        let mut tasks = Vec::with_capacity(chapters.len());
+        for mut chapter in chapters {
+            if let Some(_) = chapter.content.clone() {
+                info!("第{}章已经完成了下载，跳过", chapter.index);
+                tasks.push(tokio::spawn(async move {
+                    Ok(chapter)
+                }));
+            } else {
+                info!("开始下载第{}章的内容", chapter.index);
+                if let Some(href) = chapter.url.clone() {
+                    tasks.push(tokio::spawn(async move {
+                        let content = reqwest::get(&href).await?.text().await?;
+                        std::thread::sleep(Duration::from_millis(1500));
+                        let html = Html::parse_document(&content);
+                        let selector = Selector::parse("#content").unwrap();
+                        return if let Some(content) = html.select(&selector).next() {
+                            let content: String = content.text().collect();
+                            info!("已获取到第{}章的内容", &chapter.index);
+                            chapter.content = Some(content);
+                            Ok(chapter)
+                        } else {
+                            error!(
+                                "获取不到第{}章{}的内容，下载内容为{}",
+                                &chapter.index, &href, &content
+                            );
+                            chapter.content = None;
+                            Ok(chapter)
+                        };
+                    }));
+                } else {
+                    error!("当前章节无URL: {:#?}", chapter);
+                }
+            }
+        }
+
+        let mut chapters = Vec::new();
+        for task in tasks {
+            let chapter = task.await??;
+            chapters.push(chapter);
+        }
+        Ok(chapters)
     }
     fn generate_book(book: ElementRef) -> Option<NovelInfo> {
         let mut index: i32 = -1;
