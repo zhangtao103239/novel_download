@@ -1,9 +1,10 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration, vec};
 
 use crate::novel::*;
 use anyhow::{bail, Ok};
 use log::{debug, info};
 use scraper::{ElementRef, Html, Selector};
+use tokio_stream::{self as stream, StreamExt};
 
 pub struct Novel147 {}
 impl Novel147 {
@@ -43,27 +44,44 @@ impl Novel147 {
             let mut chapters: Vec<NovelChapter> = Vec::new();
             let mut chapter_selector = html.select(&selector);
             let mut chapter_index = 0;
+            let mut tasks = Vec::new();
             while let Some(chapter) = chapter_selector.next() {
                 chapter_index += 1;
-                let mut novel_chapter: NovelChapter =
-                    NovelChapter::new(chapter_index, Some(chapter.text().collect()), None);
+                let chapter_name: String = chapter.text().collect();
                 if let Some(href) = chapter.value().attr("href") {
                     let href = String::from(Self::host_url() + href);
-                    novel_chapter.url = Some(href.clone());
-
-                    let content =
-                        tokio::spawn(async move { reqwest::get(href).await?.text().await })
-                            .await??;
-
-                    let html = Html::parse_document(&content);
-                    let selector = Selector::parse("#content").unwrap();
-                    let content = html.select(&selector).next().unwrap();
-                    let content = content.text().collect();
-                    novel_chapter.content = Some(content);
-                    info!("完成第{}章的文本内容读取", &novel_chapter.index);
-                    chapters.push(novel_chapter);
+                    tasks.push(tokio::spawn(async move {
+                        let content = reqwest::get(&href).await?.text().await?;
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        let html = Html::parse_document(&content);
+                        let selector = Selector::parse("#content").unwrap();
+                        let content = html.select(&selector).next().unwrap();
+                        let content: String = content.text().collect();
+                        info!("已获取到第{}章的内容", chapter_index);
+                        Ok((chapter_index, chapter_name, href, content))
+                    }));
                 };
             }
+
+            for task in tasks {
+                let chapter = task.await??;
+                chapters.push(NovelChapter {
+                    index: chapter.0,
+                    name: Some(chapter.1),
+                    url: Some(chapter.2),
+                    content: Some(chapter.3),
+                });
+            }
+            // let mut stream = stream::iter(tasks);
+            // while let Some(task) = stream.next().await {
+            //     let chapter = task.await??;
+            //     chapters.push(NovelChapter {
+            //         index: chapter.0,
+            //         name: Some(chapter.1),
+            //         url: Some(chapter.2),
+            //         content: Some(chapter.3),
+            //     });
+            // }
             Ok(chapters)
         } else {
             bail!("该小说{:#?}没有目录URL", novel)
