@@ -21,15 +21,16 @@ impl NovelInfo {
 
 #[derive(Debug, Clone)]
 pub struct NovelChapter {
+    pub index: i32,
     pub name: Option<String>,
     pub url: Option<String>,
     pub content: Option<String>,
 }
 
 impl NovelChapter {
-    pub fn new(name: Option<String>, url: Option<String>) -> Self {
+    pub fn new(index:i32, name: Option<String>, url: Option<String>) -> Self {
         Self {
-            name, url, content: None
+            index, name, url, content: None
         }
     }
 }

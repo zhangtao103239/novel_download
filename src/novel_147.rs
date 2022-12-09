@@ -1,8 +1,8 @@
+use std::sync::Arc;
 
-
-use anyhow::bail;
-use log::{info, debug};
 use crate::novel::*;
+use anyhow::{bail, Ok};
+use log::{debug, info};
 use scraper::{ElementRef, Html, Selector};
 
 pub struct Novel147 {}
@@ -40,23 +40,29 @@ impl Novel147 {
             let res = reqwest::get(url).await?.text().await?;
             let html = Html::parse_document(&res);
             let selector = Selector::parse("dl > dd > a").unwrap();
-            let mut chapters = Vec::new();
+            let mut chapters: Vec<NovelChapter> = Vec::new();
             let mut chapter_selector = html.select(&selector);
+            let mut chapter_index = 0;
             while let Some(chapter) = chapter_selector.next() {
+                chapter_index += 1;
                 let mut novel_chapter: NovelChapter =
-                    NovelChapter::new(Some(chapter.text().collect()), None);
+                    NovelChapter::new(chapter_index, Some(chapter.text().collect()), None);
                 if let Some(href) = chapter.value().attr("href") {
-                    novel_chapter.url = Some(Self::host_url() + href);
-                    let content = reqwest::get(Self::host_url() + href).await?.text().await?;
+                    let href = String::from(Self::host_url() + href);
+                    novel_chapter.url = Some(href.clone());
+
+                    let content =
+                        tokio::spawn(async move { reqwest::get(href).await?.text().await })
+                            .await??;
+
                     let html = Html::parse_document(&content);
                     let selector = Selector::parse("#content").unwrap();
                     let content = html.select(&selector).next().unwrap();
                     let content = content.text().collect();
-                    info!("当前章节的文本内容为： {}", &content);
                     novel_chapter.content = Some(content);
+                    info!("完成第{}章的文本内容读取", &novel_chapter.index);
+                    chapters.push(novel_chapter);
                 };
-                // novel.add_chapter(novel_chapter.clone());
-                chapters.push(novel_chapter);
             }
             Ok(chapters)
         } else {
