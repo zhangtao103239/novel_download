@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
         args[1].to_string()
     };
     print!("{}", &name);
-    info!("开始进行搜索：{}",  &name);
+    info!("开始使用{}进行搜索：{}", Novel147::name() ,&name);
     let novels = Novel147::search_name(&name).await?;
     if novels.is_empty() {
         bail!("未搜索到{}，请尝试其他名字吧", name)
