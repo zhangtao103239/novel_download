@@ -6,7 +6,7 @@ mod novel;
 mod novel_147;
 use std::{env, fs};
 
-#[tokio::main(worker_threads = 2)]
+#[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
     let args: Vec<String> = env::args().collect();
@@ -46,7 +46,6 @@ async fn main() -> Result<()> {
             } else {
                 error!("第{}章未获取到标题:{:#?}", chapter.index, chapter);
             }
-
             if let Some(content) = &chapter.content {
                 content_list.push(content.clone());
             } else {
@@ -56,6 +55,7 @@ async fn main() -> Result<()> {
         info!(
             "已获取到小说内容，共{}章，准备写入文件{}.txt",chapters.len(), name
         );
+
         fs::write(format!("{}.txt", name), content_list.join("\n\n"))?;
     } else {
         bail!("搜索出的第一个小说无名称！: {:#?}", novel)

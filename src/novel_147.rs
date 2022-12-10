@@ -69,7 +69,7 @@ impl Novel147 {
             } else {
                 if let Some(href) = chapter.url.clone() {
                     tasks.push(tokio::spawn(async move {
-                        std::thread::sleep(Duration::from_millis(1500));
+                        std::thread::sleep(Duration::from_millis(1300));
                         info!("开始下载第{}章的内容", chapter.index);
                         let content = reqwest::get(&href).await?.text().await?;
                         let html = Html::parse_document(&content);
@@ -77,6 +77,11 @@ impl Novel147 {
                         return if let Some(content) = html.select(&selector).next() {
                             let content: String = content.text().collect();
                             info!("已获取到第{}章的内容", &chapter.index);
+                            lazy_static::lazy_static! {
+                                static ref RE: regex::Regex = regex::Regex::new(r"^.*野果.*$").unwrap();
+                            }
+                            let content = RE.replace_all(&content, "").to_string();
+                            debug!("替换野果阅读后的内容为：{}", content);
                             chapter.content = Some(content);
                             Ok(chapter)
                         } else {
