@@ -39,6 +39,9 @@ async fn main() -> Result<()> {
             failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
             retry_index += 1;
         }
+        if failed_count > 0 {
+            error!("仍然有未获取到的小说章节，共有{}章失败！", failed_count);
+        }
         let mut content_list = Vec::new();
         for chapter in &chapters {
             if let Some(content) = &chapter.name {
@@ -47,7 +50,7 @@ async fn main() -> Result<()> {
                 error!("第{}章未获取到标题:{:#?}", chapter.index, chapter);
             }
             if let Some(content) = &chapter.content {
-                content_list.push(content.clone());
+                content_list.push(content.to_string());
             } else {
                 error!("第{}章未获取到正文:{:#?}", chapter.index, chapter);
             }

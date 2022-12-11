@@ -69,7 +69,7 @@ impl Novel147 {
             } else {
                 if let Some(href) = chapter.url.clone() {
                     tasks.push(tokio::spawn(async move {
-                        std::thread::sleep(Duration::from_millis(1300));
+                        std::thread::sleep(Duration::from_millis(1200));
                         info!("开始下载第{}章的内容", chapter.index);
                         let content = reqwest::get(&href).await?.text().await?;
                         let html = Html::parse_document(&content);
