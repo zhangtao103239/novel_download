@@ -1,3 +1,5 @@
+name: DownloadNovel
+
 on:
   workflow_dispatch:
     inputs:
