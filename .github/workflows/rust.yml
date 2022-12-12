@@ -25,3 +25,5 @@ jobs:
         path: ./target/x86_64-unknown-linux-musl/release/novel_download
         # The desired behavior if no files are found using the provided path.
         retention-days: 30 # optional
+    - run: /bin/cp -f ./target/x86_64-unknown-linux-musl/release/novel_download /release/
+    - run: git commit -m 'update target' && git push
