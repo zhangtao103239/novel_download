@@ -28,6 +28,7 @@ jobs:
     - run: /bin/cp -f ./target/x86_64-unknown-linux-musl/release/novel_download ./release/
     - name: Commit files
       run: |
+        git add ./release/novel_download
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git commit -m "自动提交二进制程序"
