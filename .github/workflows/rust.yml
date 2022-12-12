@@ -20,6 +20,6 @@ jobs:
         # Artifact name
         name: novel_download  #tional, default is artifact
         # A file, directory or wildcard pattern that describes what to upload
-        path: /target/release
+        path: ./target/release/novel_download
         # The desired behavior if no files are found using the provided path.
         retention-days: 30 # optional
