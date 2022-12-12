@@ -1,7 +1,12 @@
 name: Rust
 
 on:
-  push
+  push:
+    paths-ignore:
+    - 'release/**'
+    - '.github/**'
+    - 'Cargo.toml'
+    - 'Cargo.lock'
 env:
   CARGO_TERM_COLOR: always
 
