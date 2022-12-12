@@ -50,7 +50,12 @@ impl Novel147 {
                 let chapter_name: String = chapter.text().collect();
                 if let Some(href) = chapter.value().attr("href") {
                     let href = String::from(Self::host_url() + href);
-                    chapters.push(NovelChapter { index: chapter_index, name: Some(chapter_name), url: Some(href), content: None });
+                    chapters.push(NovelChapter {
+                        index: chapter_index,
+                        name: Some(chapter_name),
+                        url: Some(href),
+                        content: None,
+                    });
                 };
             }
             Self::get_chapters_content(chapters).await
@@ -58,40 +63,52 @@ impl Novel147 {
             bail!("该小说{:#?}没有目录URL", novel)
         }
     }
-    pub async fn get_chapters_content(chapters: Vec<NovelChapter>) -> anyhow::Result<Vec<NovelChapter>> {
+    pub async fn get_chapters_content(
+        chapters: Vec<NovelChapter>,
+    ) -> anyhow::Result<Vec<NovelChapter>> {
         let mut tasks = Vec::with_capacity(chapters.len());
         for mut chapter in chapters {
             if let Some(_) = chapter.content.clone() {
                 info!("第{}章已经完成了下载，跳过", chapter.index);
-                tasks.push(tokio::spawn(async move {
-                    Ok(chapter)
-                }));
+                tasks.push(tokio::spawn(async move { Ok(chapter) }));
             } else {
                 if let Some(href) = chapter.url.clone() {
                     tasks.push(tokio::spawn(async move {
                         std::thread::sleep(Duration::from_millis(1200));
                         info!("开始下载第{}章的内容", chapter.index);
-                        let content = reqwest::get(&href).await?.text().await?;
-                        let html = Html::parse_document(&content);
-                        let selector = Selector::parse("#content").unwrap();
-                        return if let Some(content) = html.select(&selector).next() {
-                            let content: String = content.text().collect();
-                            info!("已获取到第{}章的内容", &chapter.index);
-                            lazy_static::lazy_static! {
-                                static ref RE: regex::Regex = regex::Regex::new(r"^.*野果.*$").unwrap();
-                            }
-                            let content = RE.replace_all(&content, "").to_string();
-                            debug!("替换野果阅读后的内容为：{}", content);
-                            chapter.content = Some(content);
-                            Ok(chapter)
-                        } else {
+                        if let std::result::Result::Ok(content) = reqwest::get(&href).await {
+                            let content = content.text().await?;
+                            let html = Html::parse_document(&content);
+                            let selector = Selector::parse("#content").unwrap();
+                            return if let Some(content) = html.select(&selector).next() {
+                                let content: String = content.text().collect();
+                                info!("已获取到第{}章的内容", &chapter.index);
+                                lazy_static::lazy_static! {
+                                    static ref RE: regex::Regex = regex::Regex::new(r"^.*野果.*$").unwrap();
+                                }
+                                let content = RE.replace_all(&content, "").to_string();
+                                debug!("替换野果阅读后的内容为：{}", content);
+                                chapter.content = Some(content);
+                                Ok(chapter)
+                            } else {
+                                error!(
+                                    "获取不到第{}章{}的内容，下载内容为{}",
+                                    &chapter.index, &href, &content
+                                );
+                                chapter.content = None;
+                                Ok(chapter)
+                            };
+                        }
+                        else {
                             error!(
-                                "获取不到第{}章{}的内容，下载内容为{}",
-                                &chapter.index, &href, &content
+                                "访问第{}章{}的内容失败！",
+                                &chapter.index, &href
                             );
                             chapter.content = None;
-                            Ok(chapter)
-                        };
+                        // let content = reqwest::get(&href).await?.text().await?;
+                        return Ok(chapter)
+                        }
+
                     }));
                 } else {
                     error!("当前章节无URL: {:#?}", chapter);
@@ -108,7 +125,13 @@ impl Novel147 {
     }
     fn generate_book(book: ElementRef) -> Option<NovelInfo> {
         let mut index: i32 = -1;
-        let mut novel_info = NovelInfo{name: None, url: None, author: None, desc: None, index_url: None};
+        let mut novel_info = NovelInfo {
+            name: None,
+            url: None,
+            author: None,
+            desc: None,
+            index_url: None,
+        };
         debug!("当前节点为{:#?}", book.html());
         let selector = Selector::parse("td").unwrap();
         let mut book_select = book.select(&selector);
