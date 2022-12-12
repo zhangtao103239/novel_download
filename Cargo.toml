@@ -17,4 +17,3 @@ scraper = "0.13"
 urlencoding = "2"
 lazy_static = "1"
 regex = "1"
-openssl = { version = "0.10", features = ["vendored"] }
