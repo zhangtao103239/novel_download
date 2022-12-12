@@ -21,9 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          chmod +x ./release/novel_download
-          ./release/novel_download ${{inputs.NovelName}}
+      - run: chmod +x ./release/novel_download
+      - run: RUST_LOG=info ./release/novel_download ${{inputs.NovelName}}
       - name: upload text
         uses: actions/upload-artifact@v3.1.1
         with:
