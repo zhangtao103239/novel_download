@@ -12,12 +12,13 @@ async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let name = if args.len() < 2 {
         error!("请输入要下载的小说名称！");
-        "我的".to_string()
+        let mut buf = String::new();
+        std::io::stdin().read_line(&mut buf).unwrap();
+        buf
     } else {
         args[1].to_string()
     };
-    print!("{}", &name);
-    info!("开始使用{}进行搜索：{}", Novel147::name() ,&name);
+    info!("开始使用{}进行搜索：{}", Novel147::name(), &name);
     let novels = Novel147::search_name(&name).await?;
     if novels.is_empty() {
         bail!("未搜索到{}，请尝试其他名字吧", name)
@@ -34,7 +35,7 @@ async fn main() -> Result<()> {
         let mut failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
         let retry_count = 5;
         let mut retry_index = 0;
-        while failed_count != 0 && retry_index < retry_count{
+        while failed_count != 0 && retry_index < retry_count {
             chapters = Novel147::get_chapters_content(chapters).await?;
             failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
             retry_index += 1;
@@ -56,7 +57,9 @@ async fn main() -> Result<()> {
             }
         }
         info!(
-            "已获取到小说内容，共{}章，准备写入文件{}.txt",chapters.len(), name
+            "已获取到小说内容，共{}章，准备写入文件{}.txt",
+            chapters.len(),
+            name
         );
 
         fs::write(format!("{}.txt", name), content_list.join("\n\n"))?;
