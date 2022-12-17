@@ -84,7 +84,7 @@ impl Novel147 {
                                 let content: String = content.text().collect();
                                 info!("已获取到第{}章的内容", &chapter.index);
                                 lazy_static::lazy_static! {
-                                    static ref RE: regex::Regex = regex::Regex::new(r"^.*野果.*$").unwrap();
+                                    static ref RE: regex::Regex = regex::Regex::new(r"(?m)^.*野果.*$").unwrap();
                                 }
                                 let content = RE.replace_all(&content, "").to_string();
                                 debug!("替换野果阅读后的内容为：{}", content);
