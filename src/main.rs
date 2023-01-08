@@ -1,10 +1,10 @@
 use anyhow::{bail, Result};
 use log::*;
-use novel_147::Novel147;
-
 mod novel;
 mod novel_147;
 use std::{env, fs};
+
+use crate::novel::NovelSource;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,8 +18,20 @@ async fn main() -> Result<()> {
     } else {
         args[1].to_string()
     };
-    info!("开始使用{}进行搜索：{}", Novel147::name(), &name);
-    let novels = Novel147::search_name(&name).await?;
+    let search_engine = if args.len() < 3 || args[2].is_empty() {
+        error!("请输入要使用的小说书源名称(147xs)！");
+        let mut buf = String::new();
+        std::io::stdin().read_line(&mut buf).unwrap();
+        buf
+    } else {
+        args[2].to_string()
+    };
+    let search_engine = match search_engine.trim() {
+        "147xs" => NovelSource::Novel147,
+        &_ => NovelSource::UnDo,
+    };
+    info!("开始使用{}进行搜索：{}", search_engine.name(), &name);
+    let novels = search_engine.search_name(&name).await?;
     if novels.is_empty() {
         bail!("未搜索到{}，请尝试其他名字吧", name)
     }
@@ -27,7 +39,7 @@ async fn main() -> Result<()> {
     let novel = &novels[0];
     if let Some(name) = &novel.name {
         info!("即将开始获取小说{}的信息", name);
-        let mut chapters = Novel147::get_content(novel).await?;
+        let mut chapters = search_engine.get_chapters(novel).await?;
         if chapters.is_empty() {
             bail!("未获取到小说的章节")
         }
@@ -36,7 +48,7 @@ async fn main() -> Result<()> {
         let retry_count = 5;
         let mut retry_index = 0;
         while failed_count != 0 && retry_index < retry_count {
-            chapters = Novel147::get_chapters_content(chapters).await?;
+            chapters = search_engine.get_chapters_content(chapters).await?;
             failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
             retry_index += 1;
         }
