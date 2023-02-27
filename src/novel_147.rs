@@ -4,19 +4,21 @@ use crate::novel::*;
 use anyhow::{bail, Ok};
 use async_trait::async_trait;
 use log::{debug, error, info};
+use reqwest::header::{HeaderMap, HeaderValue};
 use scraper::{ElementRef, Html, Selector};
 // use tokio_stream::{self as stream, StreamExt};
 
 pub struct Novel147 {}
 impl Novel147 {
-    pub fn host_url() -> String {
-        "https://www.147xs.org".to_string()
-    }
-
     pub fn search_url() -> String {
-        Self::host_url() + "/search.php?keyword={{key}}"
+        Self::host_url().to_string() + "/search.php?keyword={{key}}"
     }
-
+    pub fn headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(reqwest::header::REFERER, HeaderValue::from_static(Self::host_url()));
+        headers.insert(reqwest::header::USER_AGENT, HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36 Edg/109.0.1518.70"));
+        headers
+    }
     fn generate_book(book: ElementRef) -> Option<NovelInfo> {
         let mut index: i32 = -1;
         let mut novel_info = NovelInfo {
@@ -25,6 +27,7 @@ impl Novel147 {
             author: None,
             desc: None,
             index_url: None,
+            chapters: None,
         };
         debug!("当前节点为{:#?}", book.html());
         let selector = Selector::parse("td").unwrap();
@@ -56,8 +59,14 @@ impl Novel147 {
 
 #[async_trait]
 impl NovelSourceTrait for Novel147 {
+    fn host_url() -> &'static str {
+        "https://www.147xs.org"
+    }
     fn name() -> &'static str {
         "147小说"
+    }
+    fn book_url_pattern() ->  &'static str {
+        "https://www.147xs.org/book/[0-9]+/"
     }
     async fn search_name(name: &String) -> anyhow::Result<Vec<NovelInfo>> {
         let name = urlencoding::encode(name.as_str()).to_string();
@@ -75,12 +84,29 @@ impl NovelSourceTrait for Novel147 {
         }
         Ok(books)
     }
-    async fn get_chapters(novel: &NovelInfo) -> anyhow::Result<Vec<NovelChapter>> {
+    async fn get_chapters(mut novel: NovelInfo) -> anyhow::Result<NovelInfo> {
         if let Some(url) = &novel.index_url {
             let mut chapters: Vec<NovelChapter> = Vec::new();
             {
-                let res = reqwest::get(url).await?.text().await?;
+                let client = reqwest::Client::new();
+                let headers = Self::headers();
+                let res = client.get(url).headers(headers);
+                info!("{:#?}", res);
+                let res = res.send().await?;
+                if !res.status().is_success() {
+                    bail!("请求失败！：{:#?}", res)
+                }
+                let res = res.text().await?;
+                info!("{}", res);
                 let html = Html::parse_document(&res);
+                if novel.name.eq(&Some("未知书籍".to_string())) {
+                    info!("开始获取小说名称！");
+                    let selector = Selector::parse("h1").unwrap();
+                    if let Some(name) = html.select(&selector).next() {
+                        novel.name = Some(name.text().collect());
+                        info!("小说真实名称为{:#?}", novel.name);
+                    }
+                }
                 let selector = Selector::parse("dl > dd > a").unwrap();
 
                 let mut chapter_selector = html.select(&selector);
@@ -90,7 +116,7 @@ impl NovelSourceTrait for Novel147 {
                     chapter_index += 1;
                     let chapter_name: String = chapter.text().collect();
                     if let Some(href) = chapter.value().attr("href") {
-                        let href = String::from(Self::host_url() + href);
+                        let href = String::from(Self::host_url().to_string() + href);
                         chapters.push(NovelChapter {
                             index: chapter_index,
                             name: Some(chapter_name),
@@ -100,7 +126,8 @@ impl NovelSourceTrait for Novel147 {
                     };
                 }
             }
-            Self::get_chapters_content(chapters).await
+            novel.chapters = Some(Self::get_chapters_content(chapters).await.unwrap());
+            Ok(novel)
         } else {
             bail!("该小说{:#?}没有目录URL", novel)
         }

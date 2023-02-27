@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
         error!("请输入要下载的小说名称！");
         let mut buf = String::new();
         std::io::stdin().read_line(&mut buf).unwrap();
-        buf
+        buf.trim().to_string()
     } else {
         args[1].to_string()
     };
@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
         error!("请输入要使用的小说书源名称(147xs)！");
         let mut buf = String::new();
         std::io::stdin().read_line(&mut buf).unwrap();
-        buf
+        buf.trim().to_string()
     } else {
         args[2].to_string()
     };
@@ -30,19 +30,38 @@ async fn main() -> Result<()> {
         "147xs" => NovelSource::Novel147,
         &_ => NovelSource::UnDo,
     };
-    info!("开始使用{}进行搜索：{}", search_engine.name(), &name);
-    let novels = search_engine.search_name(&name).await?;
-    if novels.is_empty() {
-        bail!("未搜索到{}，请尝试其他名字吧", name)
-    }
-    debug!("搜索出以下结果：\n{:#?}", novels);
-    let novel = &novels[0];
-    if let Some(name) = &novel.name {
-        info!("即将开始获取小说{}的信息", name);
-        let mut chapters = search_engine.get_chapters(novel).await?;
-        if chapters.is_empty() {
-            bail!("未获取到小说的章节")
+    let novel = 
+    if name.starts_with("http") {
+        info!("获取到书籍链接{}，直接使用该链接下载！", name);
+        let book_url_pattern = regex::Regex::new(search_engine.book_url_pattern()).unwrap();
+        if !book_url_pattern.is_match(name.as_str()) {
+            bail!("书籍链接{}不符合书源规则{}，无法解析", name, search_engine.book_url_pattern())
         }
+        novel::NovelInfo {
+            name: Some("未知书籍".to_string()),
+            url: Some(name.clone()),
+            author: None,
+            desc: None,
+            index_url: Some(name.clone()),
+            chapters: None,
+        }
+    } else {
+        info!("开始使用{}({})进行搜索：{}", search_engine.name(), search_engine.host_url(), &name);
+        let novels = search_engine.search_name(&name).await?;
+        
+        if novels.is_empty() {
+            bail!("未搜索到{}，请尝试其他名字吧", name)
+        }
+        debug!("搜索出以下结果：\n{:#?}", novels);
+        novels[0].to_owned()
+    };
+    if let Some(name) = novel.name.clone() {
+        info!("即将开始获取小说{}的信息", name);
+        let novel = search_engine.get_chapters(novel).await?;
+        if novel.chapters.is_none() {
+            bail!("未获取到小说的章节");
+        }
+        let mut chapters = novel.chapters.unwrap();
 
         let mut failed_count = chapters.iter().filter(|c| c.content.is_none()).count();
         let retry_count = 5;

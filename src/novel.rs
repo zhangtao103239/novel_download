@@ -8,6 +8,7 @@ pub struct NovelInfo {
     pub author: Option<String>,
     pub desc: Option<String>,
     pub index_url: Option<String>,
+    pub chapters: Option<Vec<NovelChapter>>,
 }
 
 #[derive(Debug, Clone)]
@@ -20,8 +21,10 @@ pub struct NovelChapter {
 #[async_trait]
 pub trait NovelSourceTrait {
     fn name() -> &'static str;
+    fn host_url() -> &'static str;
+    fn book_url_pattern() -> &'static str;
     async fn search_name(name: &String) -> anyhow::Result<Vec<NovelInfo>>;
-    async fn get_chapters(novel: &NovelInfo) -> anyhow::Result<Vec<NovelChapter>>;
+    async fn get_chapters(mut novel: NovelInfo) -> anyhow::Result<NovelInfo>;
     async fn get_chapters_content(chapters: Vec<NovelChapter>,) -> anyhow::Result<Vec<NovelChapter>>;
 }
 
@@ -41,6 +44,26 @@ impl NovelSource{
             }
         }
     }
+    pub fn host_url(&self) -> &'static str {
+        match self {
+            NovelSource::Novel147 => {
+                Novel147::host_url()
+            },
+            _ => {
+                "未实现"
+            }
+        }
+    }
+    pub fn book_url_pattern(&self) -> &'static str {
+        match self {
+            NovelSource::Novel147 => {
+                Novel147::book_url_pattern()
+            },
+            _ => {
+                "未实现"
+            }
+        }
+    }
     pub async fn search_name(&self, name: &String) -> anyhow::Result<Vec<NovelInfo>> {
         match self {
             NovelSource::Novel147 => {
@@ -49,7 +72,7 @@ impl NovelSource{
             _ => todo!()
         }
     }
-    pub async fn get_chapters(&self, novel: &NovelInfo) -> anyhow::Result<Vec<NovelChapter>> {
+    pub async fn get_chapters(&self, novel: NovelInfo) -> anyhow::Result<NovelInfo> {
         match self {
             NovelSource::Novel147 => {
                 Novel147::get_chapters(novel).await
