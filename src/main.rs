@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
         if !book_url_pattern.is_match(name.as_str()) {
             bail!("书籍链接{}不符合书源规则{}，无法解析", name, search_engine.book_url_pattern())
         }
+        
         novel::NovelInfo {
             name: Some("未知书籍".to_string()),
             url: Some(name.clone()),
